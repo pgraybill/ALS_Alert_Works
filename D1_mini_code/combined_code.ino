@@ -1,6 +1,11 @@
+//This version mostly works, i've noted in here the changes I made to make the code work. Right now the firebase portion does not work correctly (talking to the app), the notification gets sent
+//but then it overflows or something and the system resets. It didn't always do that so something changed to cause it. 
+// Also, I made a change so that notification gets triggered once to make testing easier, but I don't know if I got rid of that or not.
+
 //combined code of EOG_D1_MINI_FINAL and FinalFirebase 
 
 //begin EOG initialization 
+
 
 //millis() will overflow after 50 days. Make sure to reset it after each charge.
 
@@ -32,6 +37,7 @@ double vImag[SAMPLES];
 double fftMagnitude[SAMPLES];
 int valArr[SAMPLES];
 int maxIndex;
+
 uint8_t fftCount = 0;
 ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, SAMPLES, 50);
 
@@ -42,7 +48,7 @@ const int passMaxLen = 64; // Maximum length of password
 const int emailMaxLen = 64; // Maximum length of SSID
 const int epassMaxLen = 64; // Maximum length of password
 const int successMaxLen = 32; // Maximum length of success
-
+//CHANGE: ONLY USE THE math addr
 const int ssidAddr = 0; // Address to store SSID in EEPROM
 const int passAddr = ssidMaxLen; // Address to store password in EEPROM
 const int emailAddr = ssidMaxLen + passMaxLen; // Address to store SSID in EEPROM
@@ -54,7 +60,7 @@ int t = 0;
 int throwOutTime = 400; // Window of time before a single look is discarded (ms) e.g. holding left
 int maxTime = 15; // Window of time before a move is discarded (s)
 int arrSize = 10; // How many moves are needed
-long arr[10]; // UPDATE THIS BASED ON ARRSIZE
+long arr[11]; // UPDATE THIS BASED ON ARRSIZE //CHANGE: Update this to 11 to avoid any problems with arr[j+1]
 int arrLen = 0;
 bool moved = false;
 
@@ -74,14 +80,11 @@ bool threshTrig = false;
 bool fftTrig = false;
 bool trigger = false;
 
-// Interrupt Handler
-void IRAM_ATTR Interrupt() {
 
-  EOG_update(); // Updates the thresholding and fourier variables
-  checkTrigger(); // Checks if the trigger requirements are met
-   Serial.println(String(User.min) + " " + String(User.max) + " " + String(maxIndex) + ", 0, 1024, " + String(val) + " " + String(arrLen) + " " + String(fftTrig) + " " + String(trigger));
-  // SDSave(); // Save data to the SD card
-   //Serial.println(String(timer) + ", " + String(val));
+volatile bool sampleFlag = false;
+
+void IRAM_ATTR Interrupt() {//CHANGE: Put a flag in the interrupt then call the rest later in the loop
+    sampleFlag = true;
 }
 
 //End EOG initialization
@@ -108,7 +111,7 @@ const char* password = "";
 
 
 bool buttonPressed = false;
-const int buttonPin = 4;
+const int buttonPin = D6;//CHANGE: Changed to D5 to run have consistent pins
 const int holdDuration = 5000;
 int buttonPressStartTime = 0;
 String storedSSID;
@@ -132,7 +135,7 @@ void EOG_setup() {
   Serial.println("Starting");
   // myFile = SD.open("data3.txt", FILE_WRITE);
   
-  pinMode(D1, OUTPUT); // Button
+  pinMode(D6, INPUT_PULLUP); // Button //CHANGE: to D6 to work with soldered pins
   pinMode(D2, OUTPUT); // Speaker
 
   // Initialize variables for the user
@@ -151,9 +154,10 @@ void EOG_setup() {
 
 void setup() {  //may need to change names of these too
   //clearStoredCredentials();
-  Serial.begin(115200);
-  pinMode(buttonPin,INPUT);
-  delay(100);
+
+  //CHANGE:REMOVE THIS BECAUSE CONFLICT WITH D5???,related is the change in reading D5 later on
+  //pinMode(buttonPin,INPUT);
+  //CHANGE: Removed serial.begin since it is already in void setup, does not work
 
   // Initialize EEPROM
   EEPROM.begin(512);
@@ -267,6 +271,10 @@ void setup() {  //may need to change names of these too
     Serial.println("Access Point started.");
     
   }
+
+
+  EOG_setup(); //CHANGE: Put this up here so that it actually gets called
+
 }
 
 //End Firebase Setup 
@@ -274,13 +282,26 @@ void setup() {  //may need to change names of these too
 
 //Begin Firebase loop
 void loop() {
+
+    static unsigned long lastPrint = 0;
+    if(sampleFlag){//CHANGE: Brought down from interupt
+        sampleFlag = false;
+        EOG_update();
+        checkTrigger();
+
+        Serial.println(String(User.min) + " " + String(User.max) + " " + String(maxIndex) + ", 0, 1024, " + String(val) + " " + String(arrLen) + " " + String(fftTrig) + " " + String(trigger));
+         // SDSave(); // Save data to the SD card
+        //Serial.println(String(timer) + ", " + String(val));
+    }
+
+
     if(storedSSID.length() <= 0){
     getWifiInfo();
   }else {
 
     if(alarmTriggered){
       checkTest();
-      delay(2000);
+      delay(2000);//CHANGE? MIght need to do something about this to save costs, right now I think this pings firebase every two seconds while alarm is going
     }
 
     // Check if a client has connected
@@ -352,7 +373,7 @@ void checkTest() {
     delay(1500);
 
     setFirestoreValue("connected", "4");
-    
+
     }
 
     jsonData.clear();
@@ -362,7 +383,8 @@ void checkTest() {
 
     setFirestoreValue("startAlarm","0");
     alarmTriggered = true;
-    
+
+
     } 
 
     jsonData.clear();
@@ -372,7 +394,7 @@ void checkTest() {
 
     setFirestoreValue("stopAlarm","0");
     alarmTriggered = false;
-    
+
     }
     
     jsonData.clear();
@@ -383,21 +405,21 @@ void checkTest() {
     setFirestoreValue("resetAll","0");
     clearStoredCredentials();
     ESP.restart();
-    
+
     }    
 
         //Code to set the startCal to 0 to verify it reads through
-    jsonData.clear();
-        payload.get(jsonData, "fields/startCal/stringValue", true);
-        if(jsonData.stringValue == "1"){
-          Serial.println("Calibration Stopped! Setting to 0");
+    jsonData.clear();//CHANGE: So it runs the initialize (calibration) and then resets firebase
+    payload.get(jsonData, "fields/startCal/stringValue", true);
+    if(jsonData.stringValue == "1"){
+      Serial.println("Calibration Started!");
+      alarmTriggered = false;
+      setFirestoreValue("startCal","0");
+      User = Initialize(); 
 
-        setFirestoreValue("startCal","0");
-        alarmTriggered = false;
+        }
 
     }
-
-  }
 }
 
 
@@ -619,7 +641,7 @@ void EOG_update() { //EOG_update
 
 void removeArray() {
   if(timer>(arr[0]+(15*1000)) && arrLen > 0){
-    for(int j = 0; j<arrLen; j++){
+    for(int j = 0; j<arrLen-1; j++){//CHANGE: Make j<arrLen-1 to handle overflow problems
       arr[j] = arr[j+1];
     }
     arrLen-=1;
@@ -662,12 +684,19 @@ void checkTrigger() {
   // If the trigger variable is true, sound the alarm
   if(trigger) {
     digitalWrite(D2, HIGH);
+    alarmTriggered = true;//CHANGE: bring this in so the phone alert goes off as well
+    setFirestoreValue("notification","1");//CHANGE: Same as above   //CHANGE: Just commented out this line and the one below to see if it interferes with button
   }
 
   // If the button is pressed turn off the alarm and reset the variables
-  if(digitalRead(D1) == 1) {
+  if(digitalRead(D6) == LOW) {//change to low to match internal pullup
     digitalWrite(D2, LOW);
     trigger = false;
+    if(alarmTriggered){//CHANGE: Made this if statement so that holding button works
+      alarmTriggered = false;//CHANGE: bring this in so the phone alert turns off as well
+      setFirestoreValue("notification","0");//CHANGE: Same as above
+    }
+    
     arrLen = 0;
     for(int j = 0; j<arrSize; j++){
       arr[j] = 0;
@@ -727,6 +756,7 @@ UserData Initialize() {
   bool movedI = false;
 
   while(millis() < initTime) {
+    yield();//CHANGE: Added a yield to handle initialize
     // Read the voltage
     val = analogRead(A0);
     Serial.println(val);
@@ -790,7 +820,8 @@ UserData Initialize() {
     }
     userMax /= (maxIdx-2); //after adding,  divide it by the value of maxidx - 2) (this should give us the avg)
     userMax -= (userMax-512)*percentOffset; //after dividing, subtract the new value of (userMax - 512)*.3 and set that to usermax
-    //why are we subtracting? where does 512 come from? 
+    userMax = constrain(userMax, 0, 1023);//CHANGE: Add these in so that the thresholds can't exceed the physical bounds
+    userMin = constrain(userMin, 0, 1023);
   } else {
     userMax = 800;
   }
@@ -815,6 +846,7 @@ void SDSave() {
     // if the file didn't open, print an error:
     myFile.close();
   }
+
 }
 
 //End EOG Code 
