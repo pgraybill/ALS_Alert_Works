@@ -19,6 +19,7 @@
 #include <EEPROM.h>
 #include <addons/TokenHelper.h>
 
+//My wonderful comment
 
 #define SAMPLES 128            // Number of samples
 #define TIMER_INTERVAL_MS 20   // Frequency = 1/(TIMER_INTERVAL_MS/1000) = 50 Hz
