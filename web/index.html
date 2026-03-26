@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALS Alert System</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        header {
+            background: #0b3d91;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        nav {
+            background: #062a63;
+            padding: 10px;
+            text-align: center;
+        }
+        nav a {
+            color: white;
+            margin: 0 15px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            padding: 40px;
+            max-width: 1100px;
+            margin: auto;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        h2 {
+            color: #0b3d91;
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #0b3d91;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+        .button:hover {
+            background: #062a63;
+        }
+        .disabled {
+            pointer-events: none;
+            filter: opacity(.5);
+        }
+        footer {
+            background: #0b3d91;
+            color: white;
+            text-align: center;
+            padding: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>ALS Alert System</h1>
+    <p>Low-Cost Eye-Triggered Emergency Alert System</p>
+</header>
+
+<nav>
+    <a href="#about">About</a>
+    <a href="#features">Features</a>
+    <a href="#technology">Technology</a>
+    <a href="#app">Android App</a>
+    <a href="#team">Team</a>
+</nav>
+
+<div class="container">
+
+    <section id="about" class="section">
+        <h2>About the Project</h2>
+        <p>
+            The ALS Alert System is designed to help late-stage ALS patients communicate urgent needs using eye movement.
+            Unlike expensive eye-tracking systems, this solution is low-cost, simple, and focused on emergency alerts.
+        </p>
+        <p>
+            The system uses electrooculography (EOG) to detect eye motion and trigger alerts to caregivers via sound and mobile notifications.
+        </p>
+    </section>
+
+    <section id="features" class="section">
+        <h2>Key Features</h2>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Eye Movement Detection</h3>
+                <p>Uses EOG sensors to detect intentional left-right eye movement.</p>
+            </div>
+            <div class="card">
+                <h3>Audible Alarm</h3>
+                <p>Triggers a loud alarm to alert caregivers nearby.</p>
+            </div>
+            <div class="card">
+                <h3>Mobile Notifications</h3>
+                <p>Sends alerts to a phone app using cloud communication.</p>
+            </div>
+            <div class="card">
+                <h3>Low Cost</h3>
+                <p>Designed to cost under $100, making it accessible.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="technology" class="section">
+        <h2>Technology Overview</h2>
+        <ul>
+            <li>EOG Sensors for eye tracking</li>
+            <li>ESP-based microcontroller</li>
+            <li>Signal processing (time + frequency domain)</li>
+            <li>Wi-Fi + Firebase cloud communication</li>
+            <li>Mobile app integration</li>
+        </ul>
+    </section>
+
+    <section id="app" class="section">
+        <h2>Android Application</h2>
+        <p>
+            The ALS Alert System includes a companion Android application that enables remote monitoring and control of the device.
+            The app connects to the system via Firebase, allowing caregivers to receive alerts even when they are not nearby.
+        </p>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Real-Time Alerts</h3>
+                <p>Receive instant notifications when the system detects a distress signal.</p>
+            </div>
+            <div class="card">
+                <h3>Alarm History</h3>
+                <p>View timestamps of previous alerts for monitoring and review.</p>
+            </div>
+            <div class="card">
+                <h3>Calibration Controls</h3>
+                <p>Start and manage device calibration directly from the app.</p>
+            </div>
+            <div class="card">
+                <h3>Manual Controls</h3>
+                <p>Trigger test alarms or stop active alarms remotely.</p>
+            </div>
+        </div>
+        <a href="#" class="button disabled" id="download-android-app">Download Android App (APK)</a>
+    </section>
+
+    <section id="team" class="section">
+        <h2>Team</h2>
+        <p>
+            Developed by a Collaboration engineering team at Messiah Univesrity, Led by Dr. Philip Graybill.
+        </p>
+        <ul>
+            <li>Aaron Eaby</li>
+            <li>Nick Epps</li>
+            <li>Alex Hoskins</li>
+            <li>Jasmine Sakore</li>
+            <li>Jeron Zimmerman</li>
+        </ul>
+    </section>
+
+    <section id="links" class="section">
+        <h2>Additional Links</h2>
+        <ul>
+            <li>
+                <a id="github-link" href="">Github Repository</a>
+            </li>
+        </ul>
+    </section>
+
+</div>
+
+<footer>
+    <p>&copy; 2026 ALS Alert System Project</p>
+</footer>
+
+<script>
+    let owner = window.location.host.substring(0, window.location.host.indexOf('.'));
+    if (!isNaN(+owner) || owner == 'localhost') { // page is being run locally
+        owner = 'nickslick03'; // default owner
+    }
+    fetch(`https://api.github.com/repos/${owner}/ALS_Alert_Works/releases/latest`)
+        .then(res => res.json())
+        .then(json => {
+            const githubLink = document.getElementById('github-link');
+            githubLink.setAttribute('href', `https://github.com/${owner}/ALS_Alert_Works`);
+            githubLink.classList.remove('disabled');
+            const downloadLink = document.getElementById("download-android-app");
+            downloadLink.setAttribute('href', `https://github.com/${owner}/ALS_Alert_Works/releases/download/${json.tag_name}/als_alert.apk`);
+            downloadLink.classList.remove('disabled');
+        });
+</script>
+</body>
+</html>
