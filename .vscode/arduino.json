@@ -1,0 +1,6 @@
+{
+    "port": "COM5",
+    "configuration": "JTAGAdapter=default,PSRAM=disabled,CDCOnBoot=default,PartitionScheme=default,CPUFreq=240,FlashMode=qio,FlashFreq=80,FlashSize=4M,UploadSpeed=921600,DebugLevel=none,EraseFlash=none,ZigbeeMode=default",
+    "board": "esp32:esp32:esp32c5",
+    "sketch": "Geronimo_Code\\Main.ino"
+}

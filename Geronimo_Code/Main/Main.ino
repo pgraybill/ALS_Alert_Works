@@ -1,7 +1,7 @@
 
 
 /////////////////////////////////////////////////////////////////////////////////
-/////////////////////////ALS Alert Team Dr. Geronimo Code/////////////////////////
+/////////////////////////ALS Alert Team LCD Screen Code/////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 
@@ -15,11 +15,13 @@
 /////////////////////////Variables/////////////////////////
 
 //pin variables
-const int Reset = D7;  //switch to 5
-const int Battery = D6; //switch to 9
-const int Wall = D5;    //switch to 8
-const int Select = D8;  //switch to 6
-const int Scroll = D4; //switch to 7
+const int Reset = 5;  //was D7
+const int Battery = 9; //was D6
+const int Wall = 8;    //was D5
+const int Select = 6;  //was D8
+const int Scroll = 7; //was D4
+const int SDA_ESP32 = 3; //was D1
+const int SCL_ESP32 = 4; //was D2
 
 //power check variables
 int W_power;
@@ -85,6 +87,9 @@ void setup() {
   pinMode(Scroll, INPUT);   //scroll button pin (pulled up externally with 10kohms)
   pinMode(Select, INPUT);   //select button pin(pulled down externally with 10kohms)
 
+  //set up I2C pins
+  Wire.begin(SDA_ESP32,SCL_ESP32);
+
   //debounce button pins
   scrollButton.attach(Scroll);
   selButton.attach(Select);
@@ -122,7 +127,7 @@ void setup() {
   lcd.locate(1,1);
   lcd.print("    MAIN MENU");
   lcd.locate(2,1);
-  lcd.print("Calibrate ***");
+  lcd.print("Calibrate    ***");
   lcd.locate(3,1);
   lcd.print("Battery Menu    ");
   lcd.locate(4,1);
@@ -180,13 +185,13 @@ scrollButton.update();  //constantly update the states of the buttons
           }
           break;
 
-        /////App Setup/////
+        /////Battery menu/////
         case opt2: 
 
           if (scrollButton.fell()) {
             SelState = opt3;
             lcd.locate(4,1); //move cursor
-            lcd.print("Run Device ***");
+            lcd.print("Run Device   ***");
 
             lcd.clr(3);
             lcd.locate(3,1);  //erase cursor from previous space
@@ -196,6 +201,7 @@ scrollButton.update();  //constantly update the states of the buttons
           } else if (selButton.rose()) {
             MenuState = Battery_Menu;
             SelState = opt1;
+            lcd.cls();
 
           }
           break;
@@ -207,7 +213,7 @@ scrollButton.update();  //constantly update the states of the buttons
             SelState = opt1;
            
             lcd.locate(2,1);
-            lcd.print("Calibrate ***");
+            lcd.print("Calibrate    ***");
 
             lcd.clr(4);
             lcd.locate(4,1);
@@ -239,7 +245,7 @@ scrollButton.update();  //constantly update the states of the buttons
         lcd.locate(1,1);
         lcd.print("    MAIN MENU");
         lcd.locate(2,1);
-        lcd.print("Calibrate ***   ");
+        lcd.print("Calibrate    ***");
         lcd.locate(3,1);
         lcd.print("Battery Menu   ");
         lcd.locate(4,1);
@@ -252,34 +258,55 @@ scrollButton.update();  //constantly update the states of the buttons
       ////////////////////////////////
       ///////////Battery Menu///////////
       ///////////////////////////////
-    case Battery_Menu: //just changed this!!
+    case Battery_Menu: 
       //Checking if battery power low
-          if (B_power == 0 && Bp_prev == 0) {
-          
-            lcd.display(LINES_3_2); //set words to middle
-            lcd.locate(1,1);
-            lcd.print("                    ");
-            //Blink the words "Battery Low"
-            if (millis() - B_Alt_delay > Blink_dly) {
-              if (Blink == 0) {
-                Blink = 1;
-                lcd.locate(2,1);
-                lcd.print("                 ");
-              } else if (Blink == 1) {
-                Blink = 0;
-                lcd.locate(2,1);
-               lcd.print("  Battery  Low  ");
-              }
-              B_Alt_delay = millis();  //restart timer
-            }
+      if  (selButton.rose()) {
 
+        MenuState = Main_Menu;
+        SelState = opt1;
+        //Code for Menu display
+        lcd.cls();
+        lcd.display(LINES_4);  // Set to 4-line for main menu
+        lcd.locate(1,1);
+        lcd.print("    MAIN MENU");
+        lcd.locate(2,1);
+        lcd.print("Calibrate    ***");
+        lcd.locate(3,1);
+        lcd.print("Battery Menu    ");
+        lcd.locate(4,1);
+        lcd.print("Run Device    ");
+        W_power = 1;
+        B_power = 1;
+        Wp_prev = 1;
+        Bp_prev = 1;
 
-          } else if (B_power == 1) {
+      } else {
+        if (B_power == 0 && Bp_prev == 0) {
             
-           lcd.locate(2,1);
-           lcd.print("Battery  Charged"); //display "Battery Charged"
-          }
+              lcd.display(LINES_3_2); //set words to middle
+              lcd.locate(1,1);
+              lcd.print("                    ");
+              //Blink the words "Battery Low"
+              if (millis() - B_Alt_delay > Blink_dly) {
+                if (Blink == 0) {
+                  Blink = 1;
+                  lcd.locate(2,1);
+                  lcd.print("                 ");
+                } else if (Blink == 1) {
+                  Blink = 0;
+                  lcd.locate(2,1);
+                lcd.print("  Battery  Low  ");
+                }
+                B_Alt_delay = millis();  //restart timer
+              }
 
+
+        } else if (B_power == 1) {
+            lcd.display(LINES_3_2);  
+            lcd.locate(2,1);
+            lcd.print("Battery  Charged"); //display "Battery Charged"
+        }
+      }
       break; //break for MenuState
 
 
@@ -298,7 +325,7 @@ scrollButton.update();  //constantly update the states of the buttons
         lcd.locate(1,1);
         lcd.print("    MAIN MENU");
         lcd.locate(2,1);
-        lcd.print("Calibrate ***   ");
+        lcd.print("Calibrate    ***");
         lcd.locate(3,1);
         lcd.print("Battery Menu    ");
         lcd.locate(4,1);
