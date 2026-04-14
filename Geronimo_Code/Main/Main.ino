@@ -252,6 +252,8 @@ void loop(){
             MenuState = Calibration_Menu;
             SelState = opt1;
 
+            lcd.cls(); //clear screen for calibration stuff
+
           }
           break; //break for opt1
 
@@ -316,47 +318,53 @@ void loop(){
 
           if(Cal_Count == 1){
             Time_Cal_Alt_Mini = millis();
-            //Jasmine
+
             //Display: "Calibrating:3"
+            lcd.display(LINES_3_3);
+            lcd.locate(1,1);
+            lcd.print(" CALIBRATING IN");
+            lcd.locate(3,1);
+            lcd.print("       3");
+
             Serial.println("3");
             while (millis()-Time_Cal_Alt_Mini <= 1000){}
 
           }else if (Cal_Count == 2){
             Time_Cal_Alt_Mini = millis();
-            //Jasmine
+
             //Display: "Calibrating: 2" 
+            lcd.display(LINES_3_3);
+            lcd.locate(3,1);
+            lcd.print("       2");
+
             Serial.println("2");
             while (millis()-Time_Cal_Alt_Mini <= 1000){}
 
           }else if (Cal_Count == 3){
             Time_Cal_Alt_Mini = millis();
-            //Jasmine
+
             //Display: "Calibrating: 1" 
+            lcd.display(LINES_3_3);
+            lcd.locate(3,1);
+            lcd.print("       1");
+
             Serial.println("1");
             while (millis()-Time_Cal_Alt_Mini <= 1000){}
 
           }else if (Cal_Count == 4){
             Time_Cal_Alt_Mini = millis();
-            //Jasmine
+
             //Display: "Calibrating: GO" 
+            lcd.display(LINES_3_3);
+            lcd.locate(3,1);
+            lcd.print("       GO!");
+
             Serial.println("GO!");
             while (millis()-Time_Cal_Alt_Mini <= 1000){}
 
             Done = 1;
           }
         }
-
-        /////////////////////////////////
-        lcd.display(LINES_4);
-        lcd.locate(1,1);
-        lcd.print("PUT STUFF HERE ");
-        lcd.locate(2,1);
-        lcd.print("FOR CALIBRATION ");
-        lcd.locate(3,1);
-        lcd.print("                ");
-        lcd.locate(4,1);
-        lcd.print("                ");
-        /////////////////////////////////
         
         Count_Max = 1;
         Count_Min = 1;
