@@ -1,23 +1,27 @@
-//This version mostly works, i've noted in here the changes I made to make the code work. Right now the firebase portion does not work correctly (talking to the app), the notification gets sent
-//but then it overflows or something and the system resets. It didn't always do that so something changed to cause it. 
-// Also, I made a change so that notification gets triggered once to make testing easier, but I don't know if I got rid of that or not.
-
+ // Also, I made a change so that notification gets triggered once to make testing easier, but I don't know if I got rid of that or not.
+//Had to change the libraries to match the ESP32-C5. Along with this you need to change the partition Scheme (in Tools) to Huge APP (3 MB No OTA/1 MB SPIFFS) to have enough room.
 //combined code of EOG_D1_MINI_FINAL and FinalFirebase 
+
 
 //begin EOG initialization 
 
 
 //millis() will overflow after 50 days. Make sure to reset it after each charge.
+//Removed because not using SD Card?
+//#include <SPI.h>
+//#include <SD.h>
 
-#include <SPI.h>
-#include <SD.h>
+//added by the 32 board?
+#include <dummy.h>
+
 #include <arduinoFFT.h>
-#include "ESP8266TimerInterrupt.h"       //https://github.com/khoih-prog/ESP8266TimerInterrupt
-#include "ESP8266_ISR_Timer.hpp"         //https://github.com/khoih-prog/ESP8266TimerInterrupt
+
 #include <Firebase_ESP_Client.h>
-#include <ESP8266WiFi.h>
 #include <EEPROM.h>
 #include <addons/TokenHelper.h>
+
+#include <WiFi.h>              // ESP32 WiFi
+#include "esp_timer.h"         // hardware timers
 
 
 #define SAMPLES 128            // Number of samples
@@ -63,9 +67,21 @@ int arrSize = 10; // How many moves are needed
 long arr[11]; // UPDATE THIS BASED ON ARRSIZE //CHANGE: Update this to 11 to avoid any problems with arr[j+1]
 int arrLen = 0;
 bool moved = false;
+volatile bool sampleFlag = false;
+hw_timer_t* timer = NULL;
 
-ESP8266Timer ITimer; // Init ESP8266 only and only Timer 1
-volatile uint32_t timer = 0; // Tracks the time of the code without millis()
+void IRAM_ATTR onTimer() {
+    sampleFlag = true;
+}
+
+void setupTimer() {
+    // frequency = 1 kHz → 1000 Hz
+     timer = timerBegin(1000000); 
+    timerAttachInterrupt(timer, &onTimer);
+    timerAlarm(timer, 20000, true, 0);
+}
+
+volatile uint32_t sysTimer = 0; // Tracks the time of the code without millis()
 volatile uint16_t buttonCount = 0; // Tracks if the button has been held
 File myFile; // SD file
 
@@ -75,17 +91,21 @@ struct UserData {
   int min;
 };
 UserData User;
+UserData Initialize();     // function prototype
 
 bool threshTrig = false;
 bool fftTrig = false;
 bool trigger = false;
 
+//CHANGE: TRYING TO MAKE IT NOT CRASH
+volatile bool sendNotification = false;
+unsigned long lastNotificationTime = 0;
+const unsigned long notificationCooldown = 5000; // 5 sec
 
-volatile bool sampleFlag = false;
 
-void IRAM_ATTR Interrupt() {//CHANGE: Put a flag in the interrupt then call the rest later in the loop
-    sampleFlag = true;
-}
+// void IRAM_ATTR Interrupt() {//CHANGE: Put a flag in the interrupt then call the rest later in the loop
+//     sampleFlag = true;
+// }
 
 //End EOG initialization
 
@@ -111,7 +131,7 @@ const char* password = "";
 
 
 bool buttonPressed = false;
-const int buttonPin = D6;//CHANGE: Changed to D5 to run have consistent pins
+const int buttonPin = 3;//CHANGE: match 32
 const int holdDuration = 5000;
 int buttonPressStartTime = 0;
 String storedSSID;
@@ -135,17 +155,21 @@ void EOG_setup() {
   Serial.println("Starting");
   // myFile = SD.open("data3.txt", FILE_WRITE);
   
-  pinMode(D6, INPUT_PULLUP); // Button //CHANGE: to D6 to work with soldered pins
-  pinMode(D2, OUTPUT); // Speaker
+  // pinMode(D6, INPUT_PULLUP); // Button //CHANGE: to D6 to work with soldered pins
+  // pinMode(D2, OUTPUT); // Speaker
+
+  pinMode(3, INPUT_PULLUP); // Button //CHANGE: to D6 to work with soldered pins
+  pinMode(25, OUTPUT); // Speaker
 
   // Initialize variables for the user
   User.min = 200; // Default values
   User.max = 800;
   User = Initialize(); 
   
-  if(ITimer.attachInterruptInterval(TIMER_INTERVAL_MS * 1000, Interrupt)) 
-  {
-  }
+  // if(ITimer.attachInterruptInterval(TIMER_INTERVAL_MS * 1000, Interrupt)) 
+  // {
+  // }
+  setupTimer();
 }
 
 //End EOG Setup 
@@ -219,7 +243,8 @@ void setup() {  //may need to change names of these too
     Serial.println("Getting User UID");
     while ((auth.token.uid) == "") {
       Serial.print('.');
-      delay(1000);
+      //delay(1000);
+      delay(100);
     }
       //-----------------
     // Print user UID
@@ -249,6 +274,7 @@ void setup() {  //may need to change names of these too
   
     if (Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "",path.c_str(),content.raw(),"connected,lastConnectiontemp,ipaddress")) //"connected" makes it only change that field. If ommitted, it clears all other fields
         Serial.printf("ok\n%s\n\n", fbdo.payload().c_str());
+        delay(1);
 
     writeEEPROM(successAddr, "success");
 
@@ -334,6 +360,24 @@ void loop() {
         client.println("<!DOCTYPE HTML>");
         client.stop();
     }
+    //CHANGE: sendNotification is chat trying to fix crash, unrelated to ESP32 switch
+      if(sendNotification && millis() - lastNotificationTime > notificationCooldown) {
+    // Stop the alarm/speaker briefly to reduce power spikes during Wi-Fi transmission
+    digitalWrite(25, LOW); 
+    
+    Serial.println("Sending Firebase Notification...");
+    String result = setFirestoreValue("notification", "1");
+    
+    if (result.length() > 0) {
+        Serial.println("Firebase Success");
+        sendNotification = false;
+        lastNotificationTime = millis();
+    } else {
+        Serial.println("Firebase Failed - Stack may be low");
+    }
+    
+    yield(); // Vital for ESP32 stability
+}
     
 	
 	// //If this delay is not here, it will cost $0.16 per day per device.
@@ -373,6 +417,7 @@ void checkTest() {
     delay(1500);
 
     setFirestoreValue("connected", "4");
+    delay(1);
 
     }
 
@@ -383,6 +428,7 @@ void checkTest() {
 
     setFirestoreValue("startAlarm","0");
     alarmTriggered = true;
+    delay(1);
 
 
     } 
@@ -394,6 +440,7 @@ void checkTest() {
 
     setFirestoreValue("stopAlarm","0");
     alarmTriggered = false;
+    delay(1);
 
     }
     
@@ -405,6 +452,7 @@ void checkTest() {
     setFirestoreValue("resetAll","0");
     clearStoredCredentials();
     ESP.restart();
+    delay(1);
 
     }    
 
@@ -416,6 +464,7 @@ void checkTest() {
       alarmTriggered = false;
       setFirestoreValue("startCal","0");
       User = Initialize(); 
+      delay(1);
 
         }
 
@@ -430,6 +479,7 @@ String setFirestoreValue(String key, String value) {
 
   Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "",path.c_str(),content.raw(),key);
   return fbdo.payload().c_str();
+  delay(1);
 }
 
 void getWifiInfo() {
@@ -587,8 +637,10 @@ void clearStoredCredentials() {
 
 void EOG_update() { //EOG_update 
   
-  val = analogRead(A0); // Get input
-  timer += TIMER_INTERVAL_MS; // Update timer based on our interrupt time
+  //val = analogRead(A0); // Get input
+  val = analogRead(2) / 4; // Get input
+      //CHANGE: Had to use GPIO2 in order to analog read, 27 and 24 were not working
+  sysTimer += TIMER_INTERVAL_MS; // Update timer based on our interrupt time
 
   ////////////////////
   // USE FFT METHOD //
@@ -612,7 +664,7 @@ void EOG_update() { //EOG_update
   // If they look right, store the time and confirm the movement
   if(val>=User.max && !moved){
     moved = true;
-    t = timer;
+    t = sysTimer;
   }
 
   // If they look back left quickly enough after moving right, add to the array
@@ -620,19 +672,19 @@ void EOG_update() { //EOG_update
     moved = false;
     if(arrLen<arrSize) {
       // Add the time to the array, and increase arrLen for trigger checking
-      arr[arrLen]=timer;
+      arr[arrLen]=sysTimer;
       arrLen++;
     } else {
       // If the array is full, shift the last one off
-      for(int j = 0; j<arrLen; j++){
+      for(int j = 0; j<arrLen-1; j++){
         arr[j] = arr[j+1];
       }
-      arr[arrLen] = timer;
+      arr[arrLen] = sysTimer;
     }
   }
 
   // Throw out the move if the user never crossed the threshold again
-  if(moved && t+throwOutTime < timer) {
+  if(moved && t+throwOutTime < sysTimer) {
     moved = false;
   }
 
@@ -640,7 +692,7 @@ void EOG_update() { //EOG_update
 
 
 void removeArray() {
-  if(timer>(arr[0]+(15*1000)) && arrLen > 0){
+  if(sysTimer>(arr[0]+(15*1000)) && arrLen > 0){
     for(int j = 0; j<arrLen-1; j++){//CHANGE: Make j<arrLen-1 to handle overflow problems
       arr[j] = arr[j+1];
     }
@@ -682,19 +734,22 @@ void checkTrigger() {
   ///////////////////////////////////////////////
 
   // If the trigger variable is true, sound the alarm
-  if(trigger) {
-    digitalWrite(D2, HIGH);
-    alarmTriggered = true;//CHANGE: bring this in so the phone alert goes off as well
-    setFirestoreValue("notification","1");//CHANGE: Same as above   //CHANGE: Just commented out this line and the one below to see if it interferes with button
+  //CHANGE
+  if(trigger && !alarmTriggered) {
+    digitalWrite(25, HIGH);
+    alarmTriggered = true;
+    sendNotification = true;
   }
 
   // If the button is pressed turn off the alarm and reset the variables
-  if(digitalRead(D6) == LOW) {//change to low to match internal pullup
-    digitalWrite(D2, LOW);
+  if(digitalRead(24) == LOW) {//change to low to match internal pullup
+    digitalWrite(25, LOW);
     trigger = false;
     if(alarmTriggered){//CHANGE: Made this if statement so that holding button works
       alarmTriggered = false;//CHANGE: bring this in so the phone alert turns off as well
-      setFirestoreValue("notification","0");//CHANGE: Same as above
+      //setFirestoreValue("notification","0");//CHANGE: Same as above
+      sendNotification = false;
+      delay(1);
     }
     
     arrLen = 0;
@@ -756,9 +811,10 @@ UserData Initialize() {
   bool movedI = false;
 
   while(millis() < initTime) {
-    yield();//CHANGE: Added a yield to handle initialize
+    //yield();//CHANGE: Added a yield to handle initialize
+    delay(1);
     // Read the voltage
-    val = analogRead(A0);
+    val = analogRead(2) /4;
     Serial.println(val);
 
     // Update the arrays with values
@@ -838,9 +894,10 @@ UserData Initialize() {
 void SDSave() {  
   // Serial.println(myFile);
   if (myFile) {
-    myFile.print(timer);
+    //myFile.print(timer);
+    myFile.print(sysTimer);
     myFile.print(",");
-    myFile.println(analogRead(A0));
+    myFile.println(analogRead(2) / 4);
     // close the file:
   } else {
     // if the file didn't open, print an error:
