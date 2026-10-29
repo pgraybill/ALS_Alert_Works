@@ -222,6 +222,7 @@
   String readEEPROM(int addr, int length);
   void clearStoredCredentials();
   bool setFirestoreValue(String key, String value);
+  bool writeServerTime(const char* fieldPath);
   bool writeHeartbeat();
   bool uploadEvent(const CloudEvent& evt);
   void queueCloudEvent(uint8_t type, uint8_t source);
@@ -1095,6 +1096,7 @@ void TaskWiFiCloud(void *pvParameters) {
                 writeEEPROM(successAddr, "success", successMaxLen);
                 storedSuccess = "success";
               }
+              writeServerTime("lastConnection");
               writeHeartbeat();
               lastHeartbeat = millis();
               Serial.println("Connection info posted to Firestore.");
@@ -1134,6 +1136,7 @@ void TaskWiFiCloud(void *pvParameters) {
               payload.get(jsonData, "fields/connected/stringValue", true);
               if (jsonData.stringValue == "3") {
                 setFirestoreValue("lastConnectiontemp", "now");
+                writeServerTime("lastConnection");  // Real timestamp shown on the app's connection screens
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 setFirestoreValue("connected", "4");
               }
@@ -1224,16 +1227,16 @@ void TaskWiFiCloud(void *pvParameters) {
     return false;
   }
 
-  // lastSeen = Firestore server time (not the device clock), so the offline
-  // check compares two server times.
-  bool writeHeartbeat() {
+  // Sets a field to the Firestore server time (not the device clock), so the
+  // offline check and the app compare server times.
+  bool writeServerTime(const char* fieldPath) {
     std::vector<struct firebase_firestore_document_write_t> writes;
     struct firebase_firestore_document_write_t transform_write;
     transform_write.type = firebase_firestore_document_write_type_transform;
     transform_write.document_transform.transform_document_path = path.c_str();
 
     struct firebase_firestore_document_write_field_transforms_t field_transforms;
-    field_transforms.fieldPath = "lastSeen";
+    field_transforms.fieldPath = fieldPath;
     field_transforms.transform_type = firebase_firestore_transform_type_set_to_server_value;
     field_transforms.transform_content = "REQUEST_TIME";
     transform_write.document_transform.field_transforms.push_back(field_transforms);
@@ -1242,8 +1245,13 @@ void TaskWiFiCloud(void *pvParameters) {
     if (Firebase.Firestore.commitDocument(&fbdo, firebaseProjectId.c_str(), "", writes, "")) {
       return true;
     }
-    Serial.print("Heartbeat failed: "); Serial.println(fbdo.errorReason());
+    Serial.print("Write of "); Serial.print(fieldPath); Serial.print(" failed: "); Serial.println(fbdo.errorReason());
     return false;
+  }
+
+  // lastSeen heartbeat, used by the checkDeviceOnline Cloud Function
+  bool writeHeartbeat() {
+    return writeServerTime("lastSeen");
   }
 
   // Writes ALSAlert/{uid}/events/{id} = {type, source, delayMs, at: server time}.

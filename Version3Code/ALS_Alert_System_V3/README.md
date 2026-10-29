@@ -20,6 +20,7 @@ Written by the device:
 |---|---|
 | `connected` | `"1"` after each boot once signed in; `"4"` answers the app's `"3"` |
 | `ipaddress`, `lastConnectiontemp` | As before |
+| `lastConnection` | Server timestamp at boot and at each app "Test Wi-Fi" (`"3"`) |
 | `lastSeen` | Server timestamp, every 20 s (offline detection) |
 
 Read by the device every 5 s: `startAlarm`, `stopAlarm`, `resetAll` (`"1"` = do it;

@@ -1,0 +1,17 @@
+{
+  "name": "als-alert-functions",
+  "description": "Push notifications for the ALS Alert device (alarms, loose electrodes, offline)",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "deploy": "firebase deploy --only functions,firestore:rules",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.3.0"
+  }
+}
