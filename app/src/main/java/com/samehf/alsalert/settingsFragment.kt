@@ -6,24 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
-import android.util.Log
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Source
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 
 
 class settingsFragment:Fragment(R.layout.fragment_settings) {
@@ -72,7 +63,7 @@ class settingsFragment:Fragment(R.layout.fragment_settings) {
     }
 
     private fun startTimer() {
-        handler = Handler()
+        handler = Handler(Looper.getMainLooper())
         longPressRunnable = Runnable {
             // Your long press action here
             // This code will execute after 3 seconds of pressing the button
@@ -84,25 +75,6 @@ class settingsFragment:Fragment(R.layout.fragment_settings) {
             if (uid != null) {
                 db.collection("ALSAlert").document(uid)
                     .update("resetAll", "1")
-                var ipaddress : String
-                db.collection("ALSAlert").document(uid)
-                    .get(Source.DEFAULT).addOnCompleteListener {
-
-                        ipaddress = it.result.data?.get("ipaddress").toString()
-//                        Log.d("ipaddres", ipaddress)
-                        val url = "http://${ipaddress}:80/checknow"
-                        sendHttpRequest(url,
-                            onSuccess = { response ->
-                                // Handle successful response
-                                Log.d("Response", response)
-                            },
-                            onError = { error ->
-                                // Handle error
-                                error.printStackTrace()
-                            }
-                        )
-                    }
-
             }
 
             val editor = preferences.edit()
@@ -123,26 +95,6 @@ class settingsFragment:Fragment(R.layout.fragment_settings) {
 
     private fun cancelTimer() {
         handler?.removeCallbacks(longPressRunnable!!)
-    }
-    fun sendHttpRequest(url: String, onSuccess: (String) -> Unit, onError: (Exception) -> Unit) {
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val connection = URL(url).openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-
-                val inputStream = connection.inputStream
-                val reader = BufferedReader(InputStreamReader(inputStream))
-                val response = reader.use(BufferedReader::readText)
-
-                onSuccess(response)
-
-                reader.close()
-                inputStream.close()
-                connection.disconnect()
-            } catch (e: Exception) {
-                onError(e)
-            }
-        }
     }
 
 }

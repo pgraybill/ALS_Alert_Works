@@ -16,11 +16,9 @@ import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
-import com.google.firebase.firestore.SetOptions
 class Signup : AppCompatActivity() {
 
     private lateinit var firebaseAuth: FirebaseAuth;
-    private val db = FirebaseFirestore.getInstance()
 
     @SuppressLint("MissingInflatedId", "SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,13 +48,6 @@ class Signup : AppCompatActivity() {
 //                            startActivity(intent)
                             val preferences = getSharedPreferences("LoginPrefs", Context.MODE_PRIVATE)
                             val editor = preferences.edit()
-
-                            val uid2 = preferences.getString("uid", null)
-                            if(uid2!=null) {
-                                editor.putString("step", "initial")
-                                    db.collection("ALSAlert").document(uid2)
-                                        .update("resetAll", "1")
-                            }
 
                             val user = firebaseAuth.currentUser
                             val uid = user?.uid
@@ -139,7 +130,6 @@ class Signup : AppCompatActivity() {
                             "notification", "0",
                             "stopAlarm", "0",
                             "startAlarm", "0",
-                            "resetAll", "0",
                             "startCal", "0",
                         )
                             .addOnSuccessListener {
@@ -150,15 +140,9 @@ class Signup : AppCompatActivity() {
                                 // e.printStackTrace()
                             }
 
-                        //more my own stuff
-                        val data = hashMapOf("startCal" to 0)
-
-                        db.collection("ALSAlert").document("uid")
-                            .set(data, SetOptions.merge())
 
                     } else {
                         // Document doesn't exist, create a new document with the FCM token
-                        val pleaseWork = FirebaseFirestore.getInstance()
                         val data = hashMapOf(
                             "token" to fcmToken,
                             "timezone" to TimeZone.getDefault().getID(),
@@ -169,11 +153,6 @@ class Signup : AppCompatActivity() {
                             "startCal" to "0",
 
                         )
-                        pleaseWork.collection("ALSAlert").document("uid")
-                            .set(data)
-                            .addOnSuccessListener { /* Success handler */ }
-                            .addOnFailureListener { /* Error handler */ }
-
                         userDocument.set(data)
                             .addOnSuccessListener {
                                 // Successfully created the document

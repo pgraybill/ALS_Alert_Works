@@ -29,7 +29,8 @@ const EVENT_MAX_AGE_MS = 60 * 60 * 1000;
 const MAX_ALARM_HISTORY = 20;
 
 // Notification channel created by the app at startup (MainActivity / MyFirebaseMessagingService).
-const ANDROID_CHANNEL_ID = "myID123";
+// Older app versions without it fall back to the default channel in their manifest.
+const ANDROID_CHANNEL_ID = "als_alerts";
 
 setGlobalOptions({ region: REGION, maxInstances: 2 });
 initializeApp();

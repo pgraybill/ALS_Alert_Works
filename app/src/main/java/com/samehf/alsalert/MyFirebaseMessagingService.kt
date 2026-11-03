@@ -10,8 +10,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.icu.util.TimeZone
 import android.media.AudioAttributes
-import android.media.Ringtone
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -26,113 +24,17 @@ import com.google.firebase.messaging.RemoteMessage
 class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val TAG = "MyFirebaseMsgService"
     private lateinit var firebaseAuth: FirebaseAuth
-    private var ringtone: Ringtone? = null
 
-
-
+    // Only runs while the app is open. When it is closed or in the background,
+    // Android shows the notification itself on the channel the message names.
     @SuppressLint("MissingPermission")
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        //change to make sure channel is there?
-        createChannel()
         Log.d(TAG, "From: ${remoteMessage.from}")
-        //change to make always sound?
-        playRingtone()
+        ConstantFunction.createNotificationChannel(this)
 
-        // Check if the message contains data
-//        if (remoteMessage.data.isNotEmpty()) {
-//            Log.d(TAG, "Message data payload: ${remoteMessage.data}")
-//
-//            // Handle the data payload here
-//            val title = remoteMessage.data["title"]
-//            val body = remoteMessage.data["body"]
-//
-//            // Show notification
-//            showNotification(title, body)
-//        }
-        if(remoteMessage.notification != null) {
-//            val title = remoteMessage.notification!!.title
-//            val body = remoteMessage.notification!!.body
-//
-//            val largeicon = BitmapFactory.decodeResource(resources, R.drawable.warningsymbol)
-//
-//            val notificationBuilder = NotificationCompat.Builder(this, "myID123")
-//                .setContentTitle(title)
-//                .setContentText("test")
-//                .setPriority(NotificationCompat.PRIORITY_HIGH)  // Set priority to high for heads-up notification
-////            .setSound(soundUri)  // Set the sound for the notification
-//                .setSmallIcon(R.drawable.warningsymbol)
-//                .setLargeIcon(largeicon)
-//
-//            val manager = NotificationManagerCompat.from(this)
-//            manager.notify(1002,notificationBuilder.build())
-            // Show notification
-//        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-//            showNotification(this, title, body, "myID123")
-//        playRingtone()
-        }
         val title = remoteMessage.notification?.title
         val body = remoteMessage.notification?.body
-
-        val largeicon = BitmapFactory.decodeResource(resources, R.drawable.warningsymbol)
-        val soundUri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + applicationContext.packageName + "/" + R.raw.alert2)
-        val notificationBuilder = NotificationCompat.Builder(this,"myID123")
-            .setContentTitle(title)
-            .setContentText("test")
-            .setPriority(NotificationCompat.PRIORITY_MAX)  // Set priority to high for heads-up notification
-            .setSound(soundUri)  // Set the sound for the notification
-            .setSmallIcon(R.drawable.warningsymbol)
-            .setLargeIcon(largeicon)
-
-        val manager = NotificationManagerCompat.from(this)
-        manager.notify(0,notificationBuilder.build())
-        // Check if the message contains a notification payload
-//        remoteMessage.notification?.let {
-//            Log.d(TAG, "Message Notification Body: ${it.body}")
-//            val title = it.title
-//            val body = it.body
-//
-//            val largeicon = BitmapFactory.decodeResource(resources, R.drawable.warningsymbol)
-//
-//            val notificationBuilder = NotificationCompat.Builder(this,"myID123")
-
-//                .setContentTitle(title)
-//                .setContentText("test")
-//                .setPriority(NotificationCompat.PRIORITY_HIGH)  // Set priority to high for heads-up notification
-////            .setSound(soundUri)  // Set the sound for the notification
-//                .setSmallIcon(R.drawable.warningsymbol)
-//                .setLargeIcon(largeicon)
-//
-//            val manager = NotificationManagerCompat.from(this)
-//            manager.notify(0,notificationBuilder.build())
-//        }
-        showNotification(this,title,body,"myID123")
-
-    }
-
-    fun createChannel() {
-        val sound =
-            //CHANGE because ChatGPT said to
-            //Uri.parse("android.resource://" + applicationContext.packageName + "/alert2.mp3")
-            Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + applicationContext.packageName + "/" + R.raw.alert2)
-        val mChannel: NotificationChannel
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mChannel =
-                NotificationChannel("myID123", "VIDEO CALL", NotificationManager.IMPORTANCE_HIGH)
-            mChannel.lightColor = Color.GRAY
-            mChannel.enableLights(true)
-            mChannel.description = "VIDEO CALL"
-            val audioAttributes = AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .build()
-            mChannel.setSound(sound, audioAttributes)
-            val notificationManager =
-                applicationContext.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(mChannel)
-            //CHANGE to help sound maybe
-            //Uri.parse("android.resource://" + applicationContext.packageName + "/alert2.mp3")
-            Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + applicationContext.packageName + "/" + R.raw.alert2)
-        }
+        showNotification(this, title, body, ConstantFunction.ALERT_CHANNEL_ID)
     }
 
     override fun onNewToken(token: String) {
@@ -196,32 +98,37 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     object ConstantFunction {
 
-        fun createNotificationChannel(
+        // Must match default_notification_channel_id in strings.xml and functions/index.js.
+        // Android never changes the sound of an existing channel, so the alarm sound
+        // needed a new ID; the old one ("myID123") had no custom sound.
+        const val ALERT_CHANNEL_ID = "als_alerts"
+        private const val OLD_CHANNEL_ID = "myID123"
 
-            context: Context,
-            channelId: String,
-            channelName: String,
-
-        ) {
+        // Called at app start so the channel exists before the first alarm arrives,
+        // even if the app is in the background when it does.
+        fun createNotificationChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val notificationManager =
                     context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+                val soundUri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + context.packageName + "/" + R.raw.alert2)
                 val audioAttributes = AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
 
-
                 val channel = NotificationChannel(
-                    channelId,
-                    channelName,
+                    ALERT_CHANNEL_ID,
+                    "ALS Alerts",
                     NotificationManager.IMPORTANCE_HIGH
                 )
-
-//                channel.setSound(soundUri, audioAttributes)
+                channel.description = "Patient alarms, loose electrodes and device offline alerts"
+                channel.lightColor = Color.RED
+                channel.enableLights(true)
+                channel.enableVibration(true)
+                channel.setSound(soundUri, audioAttributes)
                 notificationManager.createNotificationChannel(channel)
-
+                notificationManager.deleteNotificationChannel(OLD_CHANNEL_ID)
             }
         }
     }
@@ -230,37 +137,18 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     fun showNotification(context: Context, title: String?, body: String?, channelId: String) {
         val notificationManager = NotificationManagerCompat.from(context)
 
-        val largeicon = BitmapFactory.decodeResource(resources, R.drawable.warningsymbol)
+        val largeicon = BitmapFactory.decodeResource(context.resources, R.drawable.warningsymbol)
 
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_MAX)  // Set priority to high for heads-up notification
-//            .setSound(soundUri)  // Set the sound for the notification
             .setSmallIcon(R.drawable.warningsymbol)
             .setLargeIcon(largeicon)
+            .setAutoCancel(true)
 
-//        playRingtone()
-
-        // Other notification settings...
-
-        notificationManager.notify(0, notificationBuilder.build())
-    }
-
-    private fun playRingtone() {
-        // Get the default ringtone
-        val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-        // Create a Ringtone object
-        ringtone = RingtoneManager.getRingtone(applicationContext, ringtoneUri)
-
-        // Start playing the ringtone
-        ringtone?.play()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // Stop the ringtone when the activity is destroyed
-        ringtone?.stop()
+        // A separate ID for each message, so a new alert doesn't replace an unread alarm
+        notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
     }
 }

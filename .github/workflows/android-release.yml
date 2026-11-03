@@ -47,5 +47,5 @@ jobs:
         with:
           tag_name: release-${{ github.run_number }}
           name: Release ${{ github.run_number }}
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/ALS-Alert-release.apk
 

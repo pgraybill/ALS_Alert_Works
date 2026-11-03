@@ -15,7 +15,6 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
-import com.google.firebase.firestore.SetOptions
 
 class Login : AppCompatActivity() {
     private lateinit var firebaseAuth: FirebaseAuth;
@@ -141,7 +140,6 @@ private val db = FirebaseFirestore.getInstance()
                             "notification", "0",
                             "stopAlarm", "0",
                             "startAlarm", "0",
-                            "resetAll", "0",
                             "startCal", "0",
                         )
                             .addOnSuccessListener {
@@ -151,14 +149,8 @@ private val db = FirebaseFirestore.getInstance()
                                 // Handle the error
                                 // e.printStackTrace()
                             }
-                        //more my own stuff
-                        val data = hashMapOf("startCal" to 0)
-
-                        db.collection("ALSAlert").document("uid")
-                            .set(data, SetOptions.merge())
                     } else {
                         // Document doesn't exist, create a new document with the FCM token
-                        val pleasework = FirebaseFirestore.getInstance()
                         val data = hashMapOf(
                             "token" to fcmToken,
                             "timezone" to TimeZone.getDefault().getID(),
@@ -169,11 +161,6 @@ private val db = FirebaseFirestore.getInstance()
                             "startCal" to "0",
 
                         )
-                        pleasework.collection("ALSAlert").document("uid")
-                            .set(data)
-                            .addOnSuccessListener { /* Success handler */ }
-                            .addOnFailureListener { /* Error handler */ }
-
                         userDocument.set(data)
                             .addOnSuccessListener {
                                 // Successfully created the document

@@ -35,9 +35,7 @@ class MainActivity : AppCompatActivity() {
             // FCM SDK (and your app) can post notifications.
             Toast.makeText(this,"notification permission true", Toast.LENGTH_LONG)
         } else {
-            // TODO: Inform user that that your app will not show notifications.
-            Toast.makeText(this,"notification permission false", Toast.LENGTH_LONG)
-            ActivityResultContracts.RequestPermission()
+            Toast.makeText(this,"Notifications are off, so alarms can't reach this phone. Turn them on in Settings.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -51,12 +49,6 @@ class MainActivity : AppCompatActivity() {
             ) {
                 // FCM SDK (and your app) can post notifications.
                 //Toast.makeText(this,"notification permission true", Toast.LENGTH_LONG)
-            } else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-                // TODO: display an educational UI explaining to the user the features that will be enabled
-                //       by them granting the POST_NOTIFICATION permission. This UI should provide the user
-                //       "OK" and "No thanks" buttons. If the user selects "OK," directly request the permission.
-                //       If the user selects "No thanks," allow the user to continue without notifications.
-                //Toast.makeText(this,"notification permission false", Toast.LENGTH_LONG)
             } else {
                 // Directly ask for the permission
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -84,7 +76,7 @@ class MainActivity : AppCompatActivity() {
         firebaseAuth = FirebaseAuth.getInstance()
 
 //        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        MyFirebaseMessagingService.ConstantFunction.createNotificationChannel(this,"myID123","myChannel")
+        MyFirebaseMessagingService.ConstantFunction.createNotificationChannel(this)
 
         val preferences = getSharedPreferences("LoginPrefs", MODE_PRIVATE)
         val savedEmail = preferences.getString("email", null)
