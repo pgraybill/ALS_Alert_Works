@@ -162,7 +162,7 @@
     Calibration_Menu,
     Wifi_Setup,
     Wifi_Reset_Confirm,
-    Alert_State
+    Alarm_State
   };
   Menu MenuState = Main_Menu;
 
@@ -535,7 +535,7 @@ void TaskUI_FSM(void *pvParameters) {
 
         if ((Count_Min + Count_Max) <= 4) {
           Trigger = 4;
-          MenuState = Alert_State;
+          MenuState = Alarm_State;
 
         } else {
           MenuState = Main_Menu;
@@ -631,7 +631,7 @@ void TaskUI_FSM(void *pvParameters) {
 
           if ((Upper_Thresh - Lower_Thresh) <= 200) {
             Trigger = 4;
-            MenuState = Alert_State;
+            MenuState = Alarm_State;
           } else {
             Upper_Thresh = Midpoint + (Upper_Thresh - Midpoint) * PO;
             Lower_Thresh = Midpoint - (Midpoint - Lower_Thresh) * PO;
@@ -700,7 +700,7 @@ void TaskUI_FSM(void *pvParameters) {
         } else {
           if (Trigger != 0) {
             runSampling = false;
-            MenuState = Alert_State;
+            MenuState = Alarm_State;
           }
 
           if (W_power == 0 && Wp_prev == 1) {  
@@ -727,15 +727,13 @@ void TaskUI_FSM(void *pvParameters) {
         }
         break; 
 
-      case Alert_State:
+      case Alarm_State:
         runSampling = false;
-        
-        // Give binary semaphore to Wi-Fi task if a patient alarm occurred
-        if (Trigger == 1) {
-          xSemaphoreGive(xAlarmSemaphore);
-        }
 
         if (Trigger == 1) {
+          // Give binary semaphore to Wi-Fi task if a patient alarm occurred
+          xSemaphoreGive(xAlarmSemaphore);
+
           while (resetButton.read() == LOW && Trigger == 1) {
             lcd.display(LINES_4);
             lcd.locate(1,1); lcd.print("Alarm Triggered");
@@ -824,68 +822,67 @@ void TaskBiosignal(void *pvParameters) {
     if (!runSampling) continue;
 
     // Read analog millivolts
-    Sig_Prev = Sig; 
-    Sig = analogReadMilliVolts(EOG_Pin); 
-
-    //Serial.print(Sig); Serial.print("\t"); Serial.print(0); Serial.print("\t"); Serial.println(3500);
-
-    Time_Samp = millis(); 
+      Sig_Prev = Sig; 
+      Sig = analogReadMilliVolts(EOG_Pin); 
+      Time_Samp = millis(); 
+    
+    // Diagnostic Tester //Serial.print(Sig); Serial.print("\t"); Serial.print(0); Serial.print("\t"); Serial.println(3500);
 
     // Look Upper Check
-    if ((Sig > Upper_Thresh) && (Sig_Prev < Upper_Thresh) && (Up_Look_Allow == 1)) {
-      Look++; Time_Look = millis();
-      Up_Look_Allow = 0; Down_Look_Allow = 1;
-      Serial.println("An Upper Look was Detected");
-    }
+      if ((Sig > Upper_Thresh) && (Sig_Prev < Upper_Thresh) && (Up_Look_Allow == 1)) {
+        Look++; Time_Look = millis();
+        Up_Look_Allow = 0; Down_Look_Allow = 1;
+        Serial.println("An Upper Look was Detected");
+      }
     // Look Lower Check
-    if ((Sig < Lower_Thresh) && (Sig_Prev > Lower_Thresh) && (Down_Look_Allow == 1)) {
-      Look++; Time_Look = millis();
-      Up_Look_Allow = 1; Down_Look_Allow = 0;
-      Serial.println("A Lower Look was Detected");
-    }
+      if ((Sig < Lower_Thresh) && (Sig_Prev > Lower_Thresh) && (Down_Look_Allow == 1)) {
+        Look++; Time_Look = millis();
+        Up_Look_Allow = 1; Down_Look_Allow = 0;
+        Serial.println("A Lower Look was Detected");
+      }
 
     // Look Expiration Time
-    if (((millis() - Time_Look) >= SLET) && (Time_Look != 0)) {
-      Serial.println("Look Removed");
-      Look = 0; Time_Look = 0;
-    }
+      if (((millis() - Time_Look) >= SLET) && (Time_Look != 0)) {
+        Serial.println("Look Removed");
+        Look = 0; Time_Look = 0;
+      }
 
     // Move Triggering Logic
-    if (Look >= 2) {
-      Look = 0; Time_Look = 0;
-      Serial.println("Move Detected!");
-      for (ii = 0; ii < NOEM; ii++) {
-        if ((Move[ii] == 0) && (MoveAdded == 0)) {
-          Move[ii] = 1;
-          Time_Move[ii] = millis();
-          MoveAdded = 1; 
+      if (Look >= 2) {
+        Look = 0; Time_Look = 0;
+        Serial.println("Move Detected!");
+        for (ii = 0; ii < NOEM; ii++) {
+          if ((Move[ii] == 0) && (MoveAdded == 0)) {
+            Move[ii] = 1;
+            Time_Move[ii] = millis();
+            MoveAdded = 1; 
+          }
         }
+        MoveAdded = 0; 
       }
-      MoveAdded = 0; 
-    }
 
     // Alarm Trigger Check
-    if (Move[NOEM - 1] == 1) {
-      Trigger = 1;
-      Serial.println("Patient Trigger Detected");
-      Look = 0; Up_Look_Allow = 1; Down_Look_Allow = 1;
-      for (ii = 0; ii < NOEM; ii++) { Move[ii] = 0; Time_Move[ii] = 0; }
-    }
+      if (Move[NOEM - 1] == 1) {
+        Trigger = 1;
+        Serial.println("Patient Trigger Detected");
+        Look = 0; Up_Look_Allow = 1; Down_Look_Allow = 1;
+        for (ii = 0; ii < NOEM; ii++) { Move[ii] = 0; Time_Move[ii] = 0; }
+      }
 
     // Move Expiration Time
-    if (((millis() - Time_Move[0]) >= MET) && (Time_Move[0] != 0)) {
-      Serial.println("Move Removed");
-      for (ii = 0; ii < NOEM - 1; ii++) {
-        Move[ii] = Move[ii + 1];
-        Time_Move[ii] = Time_Move[ii + 1];
+      if (((millis() - Time_Move[0]) >= MET) && (Time_Move[0] != 0)) {
+        Serial.println("Move Removed");
+        for (ii = 0; ii < NOEM - 1; ii++) {
+          Move[ii] = Move[ii + 1];
+          Time_Move[ii] = Time_Move[ii + 1];
+        }
       }
-    }
 
     // Check Comparator Contact Pins
-    ElectrodeLoose = digitalRead(CompPin);
-    ElectrodeLoose2 = digitalRead(CompPin2);
-    if (ElectrodeLoose == 1)  Trigger = 2;
-    if (ElectrodeLoose2 == 1) Trigger = 3;
+      ElectrodeLoose = digitalRead(CompPin);
+      ElectrodeLoose2 = digitalRead(CompPin2);
+      if (ElectrodeLoose == 1)  Trigger = 2;
+      if (ElectrodeLoose2 == 1) Trigger = 3;
   }
 }
 
@@ -1022,11 +1019,11 @@ void TaskWiFiCloud(void *pvParameters) {
     static bool ledState = false;
     static TickType_t lastBlinkTime = xTaskGetTickCount();
     
-    if (xTaskGetTickCount() - lastBlinkTime >= pdMS_TO_TICKS(1000)) {
-      lastBlinkTime = xTaskGetTickCount();
-      ledState = !ledState;
-      digitalWrite(Cal_LED, ledState);
-    }
+    // if (xTaskGetTickCount() - lastBlinkTime >= pdMS_TO_TICKS(1000)) {
+    //   lastBlinkTime = xTaskGetTickCount();
+    //   ledState = !ledState;
+    //   digitalWrite(Cal_LED, ledState);
+    // }
     //Delete endpoint
 
     vTaskDelay(pdMS_TO_TICKS(100)); // Yield to prevent CPU starvation
