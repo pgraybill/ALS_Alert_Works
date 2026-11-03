@@ -87,6 +87,8 @@
   // Requests from the Wi-Fi task to the UI task. Only the UI task changes MenuState.
   volatile bool remoteStopRequested = false;  // App pressed "Stop Alarm"
   volatile bool remoteAlarmStarted  = false;  // App pressed "Start Alarm" (test)
+  volatile bool remoteCalRequested  = false;  // App pressed "Start Calibration"
+  bool calStartedRemotely = false;            // UI task only: return to monitoring afterwards
 
   // Cloud connection status, shown in the Wi-Fi Setup menu
   enum CloudStatus : uint8_t { CLOUD_OFF, CLOUD_WIFI_WAIT, CLOUD_AUTH, CLOUD_AUTH_FAILED, CLOUD_ONLINE };
@@ -194,7 +196,7 @@
     Calibration_Menu,
     Wifi_Setup,
     Wifi_Reset_Confirm,
-    Alert_State
+    Alarm_State
   };
   Menu MenuState = Main_Menu;
 
@@ -321,9 +323,21 @@ void TaskUI_FSM(void *pvParameters) {
     B_power = digitalRead(Battery);
 
     // A remote "Start Alarm" from the app fires from any menu, not only Run Device
-    if (Trigger == 1 && MenuState != Alert_State) {
+    if (Trigger == 1 && MenuState != Alarm_State) {
       runSampling = false;
-      MenuState = Alert_State;
+      MenuState = Alarm_State;
+    }
+
+    // A "Start Calibration" from the app runs from the main menu or while monitoring.
+    if (remoteCalRequested) {
+      remoteCalRequested = false;
+      if (MenuState == Main_Menu || MenuState == Run_Device) {
+        runSampling = false;
+        calStartedRemotely = true;
+        SelState = opt1;
+        lcd.cls();
+        MenuState = Calibration_Menu;
+      }
     }
 
     switch (MenuState) {
@@ -591,7 +605,7 @@ void TaskUI_FSM(void *pvParameters) {
 
         if ((Count_Min + Count_Max) <= 4) {
           Trigger = 4;
-          MenuState = Alert_State;
+          MenuState = Alarm_State;
 
         } else {
           MenuState = Main_Menu;
@@ -687,7 +701,7 @@ void TaskUI_FSM(void *pvParameters) {
 
           if ((Upper_Thresh - Lower_Thresh) <= 200) {
             Trigger = 4;
-            MenuState = Alert_State;
+            MenuState = Alarm_State;
           } else {
             Upper_Thresh = Midpoint + (Upper_Thresh - Midpoint) * PO;
             Lower_Thresh = Midpoint - (Midpoint - Lower_Thresh) * PO;
@@ -706,9 +720,19 @@ void TaskUI_FSM(void *pvParameters) {
           }
         }
         digitalWrite(Cal_LED, LOW);
+
+        // Started from the app: nobody is at the menu, so go back to monitoring
+        // instead of leaving the device idle. A failed calibration still alerts first.
+        if (calStartedRemotely) {
+          calStartedRemotely = false;
+          if (MenuState == Main_Menu) {
+            MenuState = Run_Device;
+            stateJustChanged = 1;
+          }
+        }
         break;
 
-      case Battery_Menu: 
+      case Battery_Menu:
         runSampling = false;
         if (selButton.rose()) {
           MenuState = Main_Menu;
@@ -757,7 +781,7 @@ void TaskUI_FSM(void *pvParameters) {
         } else {
           if (Trigger != 0) {
             runSampling = false;
-            MenuState = Alert_State;
+            MenuState = Alarm_State;
           }
 
           if (W_power == 0 && Wp_prev == 1) {  
@@ -784,7 +808,7 @@ void TaskUI_FSM(void *pvParameters) {
         }
         break; 
 
-      case Alert_State: {
+      case Alarm_State: {
         runSampling = false;
         remoteStopRequested = false; // Ignore any stop that arrived before this alert
 
@@ -912,68 +936,67 @@ void TaskBiosignal(void *pvParameters) {
     if (!runSampling) continue;
 
     // Read analog millivolts
-    Sig_Prev = Sig; 
-    Sig = analogReadMilliVolts(EOG_Pin); 
-
-    //Serial.print(Sig); Serial.print("\t"); Serial.print(0); Serial.print("\t"); Serial.println(3500);
-
-    Time_Samp = millis(); 
+      Sig_Prev = Sig; 
+      Sig = analogReadMilliVolts(EOG_Pin); 
+      Time_Samp = millis(); 
+    
+    // Diagnostic Tester //Serial.print(Sig); Serial.print("\t"); Serial.print(0); Serial.print("\t"); Serial.println(3500);
 
     // Look Upper Check
-    if ((Sig > Upper_Thresh) && (Sig_Prev < Upper_Thresh) && (Up_Look_Allow == 1)) {
-      Look++; Time_Look = millis();
-      Up_Look_Allow = 0; Down_Look_Allow = 1;
-      Serial.println("An Upper Look was Detected");
-    }
+      if ((Sig > Upper_Thresh) && (Sig_Prev < Upper_Thresh) && (Up_Look_Allow == 1)) {
+        Look++; Time_Look = millis();
+        Up_Look_Allow = 0; Down_Look_Allow = 1;
+        Serial.println("An Upper Look was Detected");
+      }
     // Look Lower Check
-    if ((Sig < Lower_Thresh) && (Sig_Prev > Lower_Thresh) && (Down_Look_Allow == 1)) {
-      Look++; Time_Look = millis();
-      Up_Look_Allow = 1; Down_Look_Allow = 0;
-      Serial.println("A Lower Look was Detected");
-    }
+      if ((Sig < Lower_Thresh) && (Sig_Prev > Lower_Thresh) && (Down_Look_Allow == 1)) {
+        Look++; Time_Look = millis();
+        Up_Look_Allow = 1; Down_Look_Allow = 0;
+        Serial.println("A Lower Look was Detected");
+      }
 
     // Look Expiration Time
-    if (((millis() - Time_Look) >= SLET) && (Time_Look != 0)) {
-      Serial.println("Look Removed");
-      Look = 0; Time_Look = 0;
-    }
+      if (((millis() - Time_Look) >= SLET) && (Time_Look != 0)) {
+        Serial.println("Look Removed");
+        Look = 0; Time_Look = 0;
+      }
 
     // Move Triggering Logic
-    if (Look >= 2) {
-      Look = 0; Time_Look = 0;
-      Serial.println("Move Detected!");
-      for (ii = 0; ii < NOEM; ii++) {
-        if ((Move[ii] == 0) && (MoveAdded == 0)) {
-          Move[ii] = 1;
-          Time_Move[ii] = millis();
-          MoveAdded = 1; 
+      if (Look >= 2) {
+        Look = 0; Time_Look = 0;
+        Serial.println("Move Detected!");
+        for (ii = 0; ii < NOEM; ii++) {
+          if ((Move[ii] == 0) && (MoveAdded == 0)) {
+            Move[ii] = 1;
+            Time_Move[ii] = millis();
+            MoveAdded = 1; 
+          }
         }
+        MoveAdded = 0; 
       }
-      MoveAdded = 0; 
-    }
 
     // Alarm Trigger Check
-    if (Move[NOEM - 1] == 1) {
-      Trigger = 1;
-      Serial.println("Patient Trigger Detected");
-      Look = 0; Up_Look_Allow = 1; Down_Look_Allow = 1;
-      for (ii = 0; ii < NOEM; ii++) { Move[ii] = 0; Time_Move[ii] = 0; }
-    }
+      if (Move[NOEM - 1] == 1) {
+        Trigger = 1;
+        Serial.println("Patient Trigger Detected");
+        Look = 0; Up_Look_Allow = 1; Down_Look_Allow = 1;
+        for (ii = 0; ii < NOEM; ii++) { Move[ii] = 0; Time_Move[ii] = 0; }
+      }
 
     // Move Expiration Time
-    if (((millis() - Time_Move[0]) >= MET) && (Time_Move[0] != 0)) {
-      Serial.println("Move Removed");
-      for (ii = 0; ii < NOEM - 1; ii++) {
-        Move[ii] = Move[ii + 1];
-        Time_Move[ii] = Time_Move[ii + 1];
+      if (((millis() - Time_Move[0]) >= MET) && (Time_Move[0] != 0)) {
+        Serial.println("Move Removed");
+        for (ii = 0; ii < NOEM - 1; ii++) {
+          Move[ii] = Move[ii + 1];
+          Time_Move[ii] = Time_Move[ii + 1];
+        }
       }
-    }
 
     // Check Comparator Contact Pins
-    ElectrodeLoose = digitalRead(CompPin);
-    ElectrodeLoose2 = digitalRead(CompPin2);
-    if (ElectrodeLoose == 1)  Trigger = 2;
-    if (ElectrodeLoose2 == 1) Trigger = 3;
+      ElectrodeLoose = digitalRead(CompPin);
+      ElectrodeLoose2 = digitalRead(CompPin2);
+      if (ElectrodeLoose == 1)  Trigger = 2;
+      if (ElectrodeLoose2 == 1) Trigger = 3;
   }
 }
 
@@ -1127,7 +1150,7 @@ void TaskWiFiCloud(void *pvParameters) {
           if (connectionReported && millis() - lastPoll >= POLL_INTERVAL_MS) {
             lastPoll = millis();
 
-            if (Firebase.Firestore.getDocument(&fbdo, firebaseProjectId.c_str(), "", path.c_str(), "connected,startAlarm,stopAlarm,resetAll")) {
+            if (Firebase.Firestore.getDocument(&fbdo, firebaseProjectId.c_str(), "", path.c_str(), "connected,startAlarm,stopAlarm,startCal,resetAll")) {
               FirebaseJson payload;
               payload.setJsonData(fbdo.payload().c_str());
               FirebaseJsonData jsonData;
@@ -1147,7 +1170,7 @@ void TaskWiFiCloud(void *pvParameters) {
               if (jsonData.stringValue == "1") {
                 setFirestoreValue("startAlarm", "0");
                 remoteAlarmStarted = true;
-                Trigger = 1; // UI task moves to Alert_State from any menu
+                Trigger = 1; // UI task moves to Alarm_State from any menu
               }
 
               // Check Remote Stop Alarm Command
@@ -1156,7 +1179,15 @@ void TaskWiFiCloud(void *pvParameters) {
               payload.get(jsonData, "fields/stopAlarm/stringValue", true);
               if (jsonData.stringValue == "1") {
                 setFirestoreValue("stopAlarm", "0");
-                if (MenuState == Alert_State) remoteStopRequested = true;
+                if (MenuState == Alarm_State) remoteStopRequested = true;
+              }
+
+              // Check Remote Start Calibration Command
+              jsonData.clear();
+              payload.get(jsonData, "fields/startCal/stringValue", true);
+              if (jsonData.stringValue == "1") {
+                setFirestoreValue("startCal", "0");
+                remoteCalRequested = true;
               }
 
               // Check Remote Reset All Settings Command

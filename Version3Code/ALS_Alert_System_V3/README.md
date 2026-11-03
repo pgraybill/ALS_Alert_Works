@@ -23,7 +23,7 @@ Written by the device:
 | `lastConnection` | Server timestamp at boot and at each app "Test Wi-Fi" (`"3"`) |
 | `lastSeen` | Server timestamp, every 20 s (offline detection) |
 
-Read by the device every 5 s: `startAlarm`, `stopAlarm`, `resetAll` (`"1"` = do it;
+Read by the device every 5 s: `startAlarm`, `stopAlarm`, `startCal`, `resetAll` (`"1"` = do it;
 the device writes `"0"` back).
 
 ## Events `ALSAlert/{uid}/events/{id}`
