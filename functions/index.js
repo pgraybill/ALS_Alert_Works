@@ -50,6 +50,15 @@ const EVENT_TEXT = {
   },
 };
 
+// Time of day in the caregiver's timezone (stored by the app at sign-in).
+function formatTime(millis, timezone) {
+  try {
+    return new Date(millis).toLocaleTimeString("en-US", { timeZone: timezone });
+  } catch (err) {
+    return new Date(millis).toLocaleTimeString("en-US", { timeZone: "UTC" }) + " UTC";
+  }
+}
+
 // Sends one high-priority push. Returns false if the user has no token or the
 // token is no longer valid; throws on other (possibly temporary) errors.
 async function sendPush(uid, token, title, body, data) {
@@ -65,7 +74,12 @@ async function sendPush(uid, token, title, body, data) {
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
       android: {
         priority: "high",
-        notification: { channelId: ANDROID_CHANNEL_ID, priority: "max", defaultSound: true },
+        notification: {
+          channelId: ANDROID_CHANNEL_ID,
+          priority: "max",
+          icon: "warningsymbol", // app/src/main/res/drawable
+          sound: "alert2", // app/src/main/res/raw (Android 8+ uses the channel's sound instead)
+        },
       },
     });
     logger.info("Push sent", { uid, title });
@@ -114,7 +128,7 @@ exports.onDeviceEvent = onDocumentCreated(
     const userSnap = await userRef.get();
     const token = userSnap.get("token");
 
-    let body = text.body;
+    let body = `${text.body}\n${formatTime(happenedAt, userSnap.get("timezone"))}`;
     const delayMin = Math.round((Number(evt.delayMs) || 0) / 60000);
     if (delayMin >= 1) body += ` (happened ${delayMin} min ago while the device was offline)`;
 
@@ -124,13 +138,14 @@ exports.onDeviceEvent = onDocumentCreated(
       happenedAt,
     });
 
-    // Patient alarms go into the Home screen's history (newest last, capped).
+    // Patient alarms go into the Home screen's history. Newest first: the app
+    // treats the first item as the latest alarm for its "X ago" text.
     if (evt.type === "alarm" && evt.source !== "remote") {
       await db.runTransaction(async (tx) => {
         const doc = await tx.get(userRef);
         const history = doc.get("LastNotification") || [];
-        history.push(Timestamp.fromMillis(happenedAt));
-        tx.set(userRef, { LastNotification: history.slice(-MAX_ALARM_HISTORY) }, { merge: true });
+        const updated = [Timestamp.fromMillis(happenedAt), ...history].slice(0, MAX_ALARM_HISTORY);
+        tx.set(userRef, { LastNotification: updated }, { merge: true });
       });
     }
 

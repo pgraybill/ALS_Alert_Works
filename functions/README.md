@@ -41,8 +41,11 @@ From the repository root (the folder containing `firebase.json`):
 cd functions
 npm install
 cd ..
-firebase deploy --only functions,firestore:rules --project YOUR_PROJECT_ID
+firebase deploy --only functions:onDeviceEvent,functions:checkDeviceOnline,firestore:rules --project YOUR_PROJECT_ID
 ```
+
+Naming the two functions leaves any other deployed function alone (see "The older
+`sendNotification` function" below).
 
 `YOUR_PROJECT_ID` is shown under Project settings → General (for the team's
 project it is `alsalert`). The first deploy can take a few minutes and may ask
@@ -64,6 +67,18 @@ location before deploying (e.g. `europe-west1` for `eur3`).
 
 If no push arrives, check that `ALSAlert/{uid}` has a `token` field (written by the
 app at sign-in) and that notifications are allowed for the app on the phone.
+
+## The older `sendNotification` function
+
+The team's `alsalert` project also runs `sendNotification`, which serves firmware
+that writes `notification = "1"` (everything before `ALS_Alert_System_V3`). Its
+source is saved in `functions-legacy/` and is not part of this deploy.
+
+It can run alongside these functions without double notifications, because the new
+firmware doesn't write `notification`. It runs on every update to `ALSAlert/{uid}`,
+so each heartbeat adds an invocation that does nothing (about 130,000 a month, within
+the free allowance). Delete it once no device runs the older firmware. New builders
+never need it.
 
 ## Security rules
 

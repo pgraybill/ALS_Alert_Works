@@ -7,7 +7,7 @@
     "node": "22"
   },
   "scripts": {
-    "deploy": "firebase deploy --only functions,firestore:rules",
+    "deploy": "firebase deploy --only functions:onDeviceEvent,functions:checkDeviceOnline,firestore:rules",
     "logs": "firebase functions:log"
   },
   "dependencies": {
