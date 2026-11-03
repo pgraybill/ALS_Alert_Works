@@ -18,3 +18,4 @@ local.properties
 *.keystore
 release.keystore
 release.keystore.b64
+firebase-debug.log
