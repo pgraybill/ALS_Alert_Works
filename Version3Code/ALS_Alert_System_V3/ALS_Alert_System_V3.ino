@@ -1112,8 +1112,14 @@ void TaskWiFiCloud(void *pvParameters) {
             content.set("fields/connected/stringValue", "1");
             content.set("fields/ipaddress/stringValue", WiFi.localIP().toString());
             content.set("fields/lastConnectiontemp/stringValue", "now");
+            // Commands written before this device was set up (e.g. the resetAll the app sends
+            // at login) are not for it: clear them so they can't wipe or alarm a fresh device.
+            content.set("fields/resetAll/stringValue", "0");
+            content.set("fields/startAlarm/stringValue", "0");
+            content.set("fields/stopAlarm/stringValue", "0");
+            content.set("fields/startCal/stringValue", "0");
 
-            if (Firebase.Firestore.patchDocument(&fbdo, firebaseProjectId.c_str(), "", path.c_str(), content.raw(), "connected,lastConnectiontemp,ipaddress")) {
+            if (Firebase.Firestore.patchDocument(&fbdo, firebaseProjectId.c_str(), "", path.c_str(), content.raw(), "connected,lastConnectiontemp,ipaddress,resetAll,startAlarm,stopAlarm,startCal")) {
               connectionReported = true;
               if (storedSuccess != "success") {
                 writeEEPROM(successAddr, "success", successMaxLen);
