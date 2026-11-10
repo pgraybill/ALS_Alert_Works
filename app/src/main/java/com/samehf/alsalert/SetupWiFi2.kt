@@ -185,13 +185,24 @@ class SetupWiFi2 : AppCompatActivity() {
     // The "ALS Alert" network has no internet, so Android sends normal traffic over
     // cellular instead and 192.168.4.1 can't be reached. Sending this one request on the
     // Wi-Fi network directly fixes that and leaves Firestore on the phone's internet.
+    // Wi-Fi Direct (P2P) also reports TRANSPORT_WIFI, so "the first Wi-Fi network"
+    // can be an unconnected P2P interface. Prefer the network on the device's own
+    // subnet (192.168.4.x), then any connected regular Wi-Fi network.
     @Suppress("DEPRECATION")
     private fun findWifiNetwork(): Network? {
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return connectivityManager.allNetworks.firstOrNull { network ->
+        val wifiNetworks = connectivityManager.allNetworks.filter { network ->
             connectivityManager.getNetworkCapabilities(network)
-                ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true &&
+                connectivityManager.getNetworkInfo(network)?.let {
+                    it.type == ConnectivityManager.TYPE_WIFI && it.isConnected
+                } == true
         }
+        return wifiNetworks.firstOrNull { network ->
+            connectivityManager.getLinkProperties(network)?.linkAddresses?.any {
+                it.address.hostAddress?.startsWith("192.168.4.") == true
+            } == true
+        } ?: wifiNetworks.firstOrNull()
     }
 
     private fun sendToDevice(url: String) {

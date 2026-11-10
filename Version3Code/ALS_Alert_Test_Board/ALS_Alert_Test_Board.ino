@@ -242,9 +242,13 @@ void setup() {
   void updateIndicators() {
     static unsigned long lastBlink = 0;
     static bool blinkOn = false;
+    static CloudStatus shown = CLOUD_OFF;
+    static Mode shownMode = ALARM;
     unsigned long period = mode == ALARM ? 250 : 1000;
 
     if (mode != MONITORING) {
+      shownMode = mode;  // Forces a redraw when monitoring resumes
+
       if (millis() - lastBlink >= period) {
         lastBlink = millis();
         blinkOn = !blinkOn;
@@ -255,8 +259,6 @@ void setup() {
       return;
     }
 
-    static CloudStatus shown = CLOUD_OFF;
-    static Mode shownMode = ALARM;
     if (shown == cloudStatus && shownMode == mode) return;
     shown = cloudStatus;
     shownMode = mode;
@@ -350,6 +352,14 @@ void TaskWiFiCloud(void *pvParameters) {
     }
     server.begin();
   } else {
+    // Report phones joining/leaving the setup network, to debug Wi-Fi setup
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+      if (event == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
+        Serial.println("[wifi] A phone JOINED \"ALS Alert\"");
+      } else if (event == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
+        Serial.println("[wifi] A phone LEFT \"ALS Alert\"");
+      }
+    });
     WiFi.mode(WIFI_AP);
     WiFi.softAP("ALS Alert", "");
     server.begin();
@@ -369,8 +379,13 @@ void TaskWiFiCloud(void *pvParameters) {
       if (client.available()) {
         String request = client.readStringUntil('\r');
         client.flush();
+        // Log the request without the query (it contains passwords)
+        int q = request.indexOf('?');
+        Serial.print("[wifi] Request received: ");
+        Serial.println(q == -1 ? request : request.substring(0, q) + " (with settings)");
         handleWebProvisioning(client, request);
       } else {
+        Serial.println("[wifi] A client connected but sent nothing");
         client.stop();
       }
     }
@@ -425,8 +440,14 @@ void TaskWiFiCloud(void *pvParameters) {
             content.set("fields/connected/stringValue", "1");
             content.set("fields/ipaddress/stringValue", WiFi.localIP().toString());
             content.set("fields/lastConnectiontemp/stringValue", "now");
+            // Commands written before this device was set up (e.g. the resetAll the app sends
+            // at login) are not for it: clear them so they can't wipe or alarm a fresh device.
+            content.set("fields/resetAll/stringValue", "0");
+            content.set("fields/startAlarm/stringValue", "0");
+            content.set("fields/stopAlarm/stringValue", "0");
+            content.set("fields/startCal/stringValue", "0");
 
-            if (Firebase.Firestore.patchDocument(&fbdo, firebaseProjectId.c_str(), "", path.c_str(), content.raw(), "connected,lastConnectiontemp,ipaddress")) {
+            if (Firebase.Firestore.patchDocument(&fbdo, firebaseProjectId.c_str(), "", path.c_str(), content.raw(), "connected,lastConnectiontemp,ipaddress,resetAll,startAlarm,stopAlarm,startCal")) {
               connectionReported = true;
               if (storedSuccess != "success") {
                 writeEEPROM(successAddr, "success", successMaxLen);
